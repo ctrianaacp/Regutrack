@@ -1,0 +1,45 @@
+# Core
+httpx[http2]==0.27.0
+requests==2.31.0
+beautifulsoup4==4.12.3
+lxml==5.2.1
+
+# JS-rendered pages
+playwright==1.44.0
+
+# Database
+sqlalchemy==2.0.30
+alembic==1.13.1
+
+# Configuration
+pydantic-settings==2.2.1
+python-dotenv==1.0.1
+
+# Scheduler
+APScheduler==3.10.4
+
+# CLI
+typer[all]==0.12.3
+rich==13.7.1
+
+# Utilities
+tenacity==8.3.0       # Retry logic
+fake-useragent==1.5.1 # Rotate user agents
+
+# API
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+python-multipart==0.0.9
+
+# AI / Adaptive Scraper (OpenAI)
+openai>=1.30.0
+
+# PostgreSQL driver
+psycopg2-binary==2.9.9
+
+# Timezone
+pytz==2024.1
+
+# Testing
+pytest==8.2.0
+pytest-asyncio==0.23.7

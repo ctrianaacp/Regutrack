@@ -1,0 +1,52 @@
+# ── Secrets & config local ─────────────────────────────────────────────────
+.env
+
+# ── Base de datos local (SQLite fallback) ──────────────────────────────────
+*.db
+*.sqlite
+
+# ── Entornos Python ────────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.ruff_cache/
+
+# ── Logs ───────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Frontend (Next.js) ─────────────────────────────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env.production
+frontend/package-lock.json
+
+# ── Archivos de debug / scripts temporales ─────────────────────────────────
+check_db.py
+check_out.txt
+cleanup_ane.py
+debug_scraper.py
+fix_emails.py
+real_scrape_test.py
+real_scrape_test2.py
+run_scraper.py
+verify_ai.py
+=1.30.0
+
+# ── Playwright ─────────────────────────────────────────────────────────────
+test-results/
+playwright-report/
+
+# ── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

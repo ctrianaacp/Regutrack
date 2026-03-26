@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "regutrack"
+version = "0.1.0"
+description = "Sistema de monitoreo y trazabilidad de normas colombianas"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+[project.scripts]
+regutrack = "regutrack.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["regutrack*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
