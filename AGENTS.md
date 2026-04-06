@@ -43,11 +43,11 @@ El flujo general de ReguTrack es el siguiente:
 
 Si estás modificando código, **evita estos problemas conocidos**:
 
-1.  **Conflicto de Event Loops (Playwright en FastAPI):**
-    *   **El Error:** `Event loop is closed` o `is bound to a different event loop`.
-    *   **La Causa:** `asyncio.run()` falla dentro de un `BackgroundTasks` o hilo de FastAPI porque Uvicorn ya tiene su propio loop ejecutándose, y Playwright es muy restrictivo con el loop de donde se le llama.
-    *   **La Solución:** Crear un event loop completamente nuevo y configurarlo por cada hilo de fondo donde deba correr un scraper.
-    *   *Código seguro (ejemplo en `entities.py`)*:
+1.  **Conflicto de Event Loops (Playwright en FastAPI y Scheduler):**
+    *   **El Error:** `<asyncio.locks.Lock object ... > is bound to a different event loop`.
+    *   **La Causa:** `asyncio.run()` dentro de un hilo de APScheduler o `BackgroundTasks` de FastAPI comparte los locks internos de Playwright con el loop de Uvicorn. Si múltiples scrapers se disparan juntos bajo el mismo loop, los locks de Playwright quedan "atados" al primer loop y fallan en el siguiente.
+    *   **La Solución:** Cada scraper (tanto en el scheduler como en el endpoint manual) debe correr en su **propio event loop aislado** usando el patrón:
+    *   *Código seguro — aplicado en `scheduler.py` (`_run_one_scraper`) y `entities.py` (`_run_scraper_bg`)*:
         ```python
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -56,6 +56,7 @@ Si estás modificando código, **evita estos problemas conocidos**:
         finally:
             loop.close()
         ```
+    *   **NUNCA usar** `asyncio.run(_run_all_async())` para correr múltiples scrapers consecutivos en el mismo hilo — esto fue lo que causó el fallo masivo del scheduler (63 de 75 scrapers fallando simultáneamente el 2026-03-25).
 
 2.  **Identificadores de Entidades (Key Mismatch):**
     *   **El Error:** Frontend manda a buscar la entidad `a_n_e` y recibe HTTP 404 porque la key real es `ane`. Esto solía ocurrir porque el frontend intentaba generar inteligentemente el nombre en snake_case interpretando las mayúsculas (ej: `ANEScraper` -> `a_n_e`).
@@ -77,6 +78,17 @@ Si estás modificando código, **evita estos problemas conocidos**:
     *   **La Causa:** La clase definía `entity_url = f"{_BASE}/"`. El parser estándar de HTML buscaba tablas y terminaba atrapando contenedores genéricos de la página de inicio.
     *   **La Solución:** Todo Web Scraper de esta aplicación **debe** apuntar directamente a sub-páginas formales de emisión de normas (ej. `/normativa/normograma`, `/informacion-de-la-ani/normatividad`, o sus portales *Gaceta*), NUNCA al root domain, para que el fallo en caso de no hallar normas sea resultar en `0 documentos` en lugar de generar falsos positivos.
 
+7.  **Timeout en Scrapers Playwright (`networkidle` vs `domcontentloaded`):**
+    *   **El Error:** `Page.goto: Timeout 45000ms exceeded` en scrapers como ANE, UPME, MinVivienda y MinMinas.
+    *   **La Causa:** `wait_until="networkidle"` espera que no haya peticiones de red por 500ms. Los sitios modernos (SharePoint Online, WordPress/Elementor, Drupal Views, React SPAs) tienen peticiones continuas (analytics, heartbeats, websockets) que **nunca** permiten alcanzar `networkidle`.
+    *   **La Solución:** Usar `wait_until="domcontentloaded"` (solo espera que el HTML esté parseado) + `wait_for_selector("<selector_del_contenido>")` para confirmar que el contenido relevante cargó. Aumentar el timeout a 60–90s para sitios lentos.
+    *   *Patrón correcto:*
+        ```python
+        await page.goto(url, timeout=90_000, wait_until="domcontentloaded")
+        await page.wait_for_selector("div.mi-contenido", timeout=30_000)
+        ```
+    *   **Scrapers afectados y corregidos:** `ane.py` (60s), `upme.py` (90s, 3 URLs), `minvivienda.py` (90s), `minenergia.py` (90s).
+
 ## 4. Archivo .env
 Las configuraciones críticas están aquí. Las principales relacionadas con el core de la app son:
 *   `VITE_API_URL` / `NEXT_PUBLIC_API_URL`: Definientes de la API proxy (típicamente de cliente).
@@ -84,3 +96,25 @@ Las configuraciones críticas están aquí. Las principales relacionadas con el 
     *   Ejemplo: Si está a las 17:30 e intervalo de 6h, disparará 17:30, 23:30, 05:30, 11:30.
 *   Credenciales SMTP (`NOTIFIER_SMTP_HOST`, `NOTIFIER_SMTP_USER`, `NOTIFIER_SMTP_PASSWORD`, `NOTIFIER_EMAIL_TO`).
 *   Database y OpenAI (Usado de fallback por algunos scrapers más complejos como en MinJusticia/SUIN).
+
+## 5. Repositorio y Control de Versiones
+
+*   **Repositorio GitHub:** [`ctrianaacp/Regutrack`](https://github.com/ctrianaacp/Regutrack)
+*   **Rama principal:** `master`
+*   **`.gitignore` excluye:** `.env`, `.venv/`, `*.db`, `frontend/node_modules/`, `frontend/package-lock.json`, `frontend/.next/`, scripts de debug temporales.
+*   **Flujo de trabajo para subir cambios:**
+    ```powershell
+    git add .
+    git commit -m "tipo: descripción del cambio"
+    git push
+    ```
+*   **Rebuild del backend tras cambios en Python:**
+    ```powershell
+    docker compose build api
+    docker compose up -d api
+    ```
+*   **Rebuild del frontend tras cambios en Next.js:**
+    ```powershell
+    cd frontend; npm run build; cd ..
+    pm2 restart regutrack-frontend
+    ```
