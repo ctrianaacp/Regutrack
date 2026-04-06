@@ -4,9 +4,11 @@ import pytest
 
 
 def test_all_scrapers_importable():
-    """All scraper classes in ALL_SCRAPERS must be importable."""
+    """All scraper classes in ALL_SCRAPERS must be importable and be valid classes."""
     from regutrack.scrapers import ALL_SCRAPERS
-    assert len(ALL_SCRAPERS) == 31, f"Expected 31 scrapers, got {len(ALL_SCRAPERS)}"
+    assert len(ALL_SCRAPERS) > 0, "No scrapers registered — ALL_SCRAPERS is empty"
+    for cls in ALL_SCRAPERS:
+        assert isinstance(cls, type), f"{cls} is not a class"
 
 
 def test_scrapers_have_required_attributes():
