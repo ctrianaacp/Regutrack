@@ -1,44 +1,72 @@
-"""Senado de la República scraper — Leyes y proyectos de ley."""
-import re
-from bs4 import BeautifulSoup
+"""Senado de la República scraper — Proyectos de Ley."""
+from datetime import datetime
+import httpx
+
 from regutrack.scrapers.base import BaseScraper
 from regutrack.utils.hashing import DocumentResult
-from regutrack.utils.http_client import fetch_html
 
-_BASE = "https://www.senado.gov.co"
+_BASE = "https://leyes.senado.gov.co"
+_API  = f"{_BASE}/api/search_pdly.php"
+_PAGE = f"{_BASE}/#pdly"
 
 class SenadoScraper(BaseScraper):
     entity_name = "Senado de la República"
-    entity_url = f"{_BASE}/"
+    entity_url = _PAGE
     entity_group = "group4_legislativa"
-    doc_type_default = "Ley"
+    doc_type_default = "Proyecto de Ley"
 
     async def fetch_documents(self) -> list[DocumentResult]:
-        docs = []
-        # Try current leyes index page
-        url = f"{_BASE}/legislacion/leyes.html"
-        try:
-            html = await fetch_html(url)
-        except Exception:
-            url = f"{_BASE}/"
-            html = await fetch_html(url)
-        soup = BeautifulSoup(html, "lxml")
+        """
+        Consulta la API de leyes.senado.gov.co para obtener los Proyectos de Ley.
+        Usa un POST multipart/form-data que es lo que el servidor espera empíricamente.
+        """
+        results: list[DocumentResult] = []
 
-        for link_el in soup.select("a[href]"):
-            text = link_el.get_text(strip=True)
-            href = link_el["href"]
-            if not re.search(r"ley|proyecto|acto\s+legislativo", text, re.IGNORECASE):
-                continue
-            if len(text) < 5:
-                continue
-            if not href.startswith("http"):
-                href = _BASE + href
-            number_m = re.search(r"(\d+)\s+de\s+(\d{4})", text, re.IGNORECASE)
-            docs.append(DocumentResult(
-                title=text[:200],
-                url=href,
-                doc_type="Ley",
-                number=number_m.group(0) if number_m else None,
-            ))
+        now = datetime.now()
+        # Puedes enviar algún campo en el multipart, usando un dict vacío explota en httpx,
+        # así que enviamos una consulta de búsqueda vacía o el año.
+        files = {"search": (None, "")}
 
-        return docs[:80]
+        async with httpx.AsyncClient(timeout=60, verify=False, follow_redirects=True) as client:
+            try:
+                resp = await client.post(_API, files=files)
+                resp.raise_for_status()
+                data = resp.json()
+            except Exception as e:
+                # Si falla la red local (ej. bloqueos geográficos o IP), retornamos vacío
+                # para que el pipeline principal no crashee por completo.
+                print(f"[SenadoScraper] Error fetching API: {e}")
+                return []
+
+        items = data if isinstance(data, list) else data.get("data", [])
+        for item in items:
+            numero = item.get("numero_senado") or item.get("numero") or ""
+            camara = item.get("numero_camara", "")
+            titulo = (item.get("titulo") or "").strip()
+            autor  = (item.get("autor") or "").strip()
+            cuatrenio = item.get("cuatrenio") or item.get("anio") or ""
+            estado = item.get("estado") or ""
+
+            if not titulo:
+                continue
+
+            num_completo = str(numero)
+            if camara and str(camara) != "-":
+                num_completo += f" / {camara}"
+
+            title = f"PROYECTO DE LEY {num_completo} – {titulo[:200]}"
+            pid = item.get("id") or ""
+            url = f"{_BASE}/api/get_detalle_pdly.php?id={pid}" if pid else _PAGE
+
+            results.append(
+                DocumentResult(
+                    title=title.strip()[:300],
+                    url=url,
+                    doc_type="Proyecto de Ley",
+                    number=num_completo,
+                    publication_date=now.strftime("%Y-%m-%d"),  # El JSON puede no traer fecha exacta de pub, usar fecha actual o derivar
+                    raw_summary=f"Autor: {autor} | Estado: {estado} | Cuatrenio: {cuatrenio}"[:500],
+                )
+            )
+
+        return results

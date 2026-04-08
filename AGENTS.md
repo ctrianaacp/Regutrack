@@ -89,6 +89,18 @@ Si estás modificando código, **evita estos problemas conocidos**:
         ```
     *   **Scrapers afectados y corregidos:** `ane.py` (60s), `upme.py` (90s, 3 URLs), `minvivienda.py` (90s), `minenergia.py` (90s).
 
+8.  **APIs Internas vs Portales Públicos (Bypass de CAPTCHAs y SPAs):**
+    *   **El Problema:** Portales como la _Procuraduría General_ usan reCAPTCHA en su frontend. Adicionalmente, SPAs como el _Senado_ pueden bloquear conexiones automáticas (TCP timeouts / WAF) hacia Playwright o Python sin headers, crasheando el proceso del worker.
+    *   **La Solución (Ingeniería Inversa):** Siempre examinar el Network/DOM en busca de endpoints puros que alimentan la interfaz o que embeben el contenido.
+        *   Para *Procuraduría*: En lugar de resolver el CAPTCHA, se apuntó directamente al endpoint de la relatoría embebido (`https://apps.procuraduria.gov.co/relatoria/index.jsp`) con peticiones `POST` directas.
+        *   Para *Senado*: En vez de usar headless browsing que sufría de *TCP Timeout* a nivel local, se extrajo la ruta de la API REST interna (`/api/search_pdly.php`) consumiéndola vía `httpx` empacada como `multipart/form-data`, capturando un fallo limpio (empty list) en caso de sufrir bloqueos por IP para prevenir la caída del scheduler.
+        *   Para *Consejo de Estado*: Se escaneó e interceptó el `iframe` oculto que servía los verdaderos datos y no el cascarón frontend.
+
+9.  **Optimización de Contexto de Docker (Importancia del `.dockerignore`):**
+    *   **El Error:** `docker compose build api` se quedaba "colgado" durante minutos transfiriendo el build context al demonio de Docker.
+    *   **La Causa:** En local, la carpeta `.venv/` de Python (que incluye los pesados binarios del Chromium de Playwright) y las carpetas `node_modules` excedían varios Gigabytes y Docker arrastraba todo por defecto.
+    *   **La Solución:** Asegurarse de la existencia estricta de `.dockerignore` en la raíz bloqueando `.venv/`, `frontend/`, `tests/` y `.git/` para compilar la imagen de producción en pocos segundos.
+
 ## 4. Archivo .env
 Las configuraciones críticas están aquí. Las principales relacionadas con el core de la app son:
 *   `VITE_API_URL` / `NEXT_PUBLIC_API_URL`: Definientes de la API proxy (típicamente de cliente).

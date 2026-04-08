@@ -14,7 +14,7 @@ from regutrack.models import Document
 logger = logging.getLogger(__name__)
 
 # ── Brand constants ──────────────────────────────────────────────────────────
-_BRAND_NAME     = "EnergyBot ACP"
+_BRAND_NAME     = "ReguTrack ACP"
 _BRAND_TAG      = "Alertas EnergyBot-ACP"
 _BRAND_COLOR    = "#0A2240"   # Dark navy
 _ACCENT_COLOR   = "#E8A020"   # Amber/gold

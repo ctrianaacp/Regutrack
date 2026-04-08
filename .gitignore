@@ -21,6 +21,8 @@ build/
 # ── Logs ───────────────────────────────────────────────────────────────────
 logs/
 *.log
+*.txt
+*.html
 
 # ── Frontend (Next.js) ─────────────────────────────────────────────────────
 frontend/node_modules/
@@ -31,16 +33,11 @@ frontend/.env.production
 frontend/package-lock.json
 
 # ── Archivos de debug / scripts temporales ─────────────────────────────────
-check_db.py
-check_out.txt
-cleanup_ane.py
-debug_scraper.py
-fix_emails.py
-real_scrape_test.py
-real_scrape_test2.py
-run_scraper.py
-verify_ai.py
-=1.30.0
+scripts/*.py
+!scripts/__init__.py
+tasks/
+tmp/
+
 
 # ── Playwright ─────────────────────────────────────────────────────────────
 test-results/
