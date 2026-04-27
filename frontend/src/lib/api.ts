@@ -3,7 +3,7 @@
  * In dev: /api/* → http://localhost:8000/api/*
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL || "";
+const BASE = typeof window !== "undefined" ? "" : (process.env.NEXT_PUBLIC_API_URL || "");
 
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
