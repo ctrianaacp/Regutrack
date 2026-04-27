@@ -101,6 +101,18 @@ Si estás modificando código, **evita estos problemas conocidos**:
     *   **La Causa:** En local, la carpeta `.venv/` de Python (que incluye los pesados binarios del Chromium de Playwright) y las carpetas `node_modules` excedían varios Gigabytes y Docker arrastraba todo por defecto.
     *   **La Solución:** Asegurarse de la existencia estricta de `.dockerignore` en la raíz bloqueando `.venv/`, `frontend/`, `tests/` y `.git/` para compilar la imagen de producción en pocos segundos.
 
+10. **Sincronización de Directorios (Shadow Projects):**
+    *   **El Problema:** El scraper o cambio en el código no se refleja en la ejecución (API o Frontend) a pesar de que el archivo existe en el workspace.
+    *   **La Causa:** Existen múltiples copias del repositorio en la máquina (ej: `C:\Users\image\ReguTrack` y `C:\Users\image\Proyectos\ReguTrack`). Docker y PM2 pueden estar configurados para apuntar a la ruta antigua, ignorando los cambios en la carpeta de proyectos actual.
+    *   **La Solución:** Verificar siempre los puntos de montaje y directorios de trabajo:
+        *   Para Docker: `docker inspect regutrack-api --format="{{json .Mounts}}"`
+        *   Para PM2: `pm2 describe regutrack-frontend` (buscar `exec cwd`)
+        *   Si hay discrepancia, detener los servicios, navegar a la carpeta correcta y ejecutar `docker compose up -d --build` y `pm2 delete ... / pm2 start ...`.
+
+11. **Visibilidad de Títulos en Alertas:**
+    *   Los reportes por correo deben priorizar la visibilidad del tema para que el usuario no necesite entrar a la plataforma para entender la relevancia.
+    *   **Regla:** No truncar el título del documento en la tabla del correo (`title_str = doc.title`). Usar un tamaño de fuente ligeramente menor (11px) y asegurar que la columna "Tipo" tenga suficiente ancho (140px) para no comprimir el texto.
+
 ## 4. Archivo .env
 Las configuraciones críticas están aquí. Las principales relacionadas con el core de la app son:
 *   `VITE_API_URL` / `NEXT_PUBLIC_API_URL`: Definientes de la API proxy (típicamente de cliente).
@@ -127,6 +139,29 @@ Las configuraciones críticas están aquí. Las principales relacionadas con el 
     ```
 *   **Rebuild del frontend tras cambios en Next.js:**
     ```powershell
-    cd frontend; npm run build; cd ..
     pm2 restart regutrack-frontend
     ```
+
+## 6. Servidor de Producción (VPS IONOS)
+
+ReguTrack comparte servidor de producción con otros proyectos corporativos a través de Coolify.
+
+*   **IP del Servidor:** `74.208.130.203`
+*   **Gestión de Contenedores:** Coolify UI (Puerto 8000).
+*   **Acceso SSH Seguro:** 
+    *   No se permiten contraseñas, solo autenticación por llave pública (`id_ed25519`).
+    *   Comando para acceder (desde la máquina de administración en Windows):
+        ```powershell
+        ssh -i "$env:USERPROFILE\.ssh\id_ed25519" acpadmin@74.208.130.203
+        ```
+    *   **NO usar `root`** de forma directa, está bloqueado por seguridad. El usuario `acpadmin` tiene privilegios `sudo`.
+*   **Firewall (UFW) y Fail2Ban:** Están activados. Si se configuran puertos adicionales (ej. Base de datos para conexiones externas), asegúrate de abrirlos en `ufw` usando el usuario `acpadmin`.
+*   **Estrategia de Despliegue (Coolify):**
+    *   El Backend (`Dockerfile.api`) y Frontend (`Next.js / Nixpacks`) se instancian como contenedores independientes dentro del VPS, no usar PM2 en producción.
+
+### Datos de Conexión a la Nueva Infraestructura PostgreSQL (VPS)
+*   **Host / IP:** `74.208.130.203` (Puerto `5432`)
+*   **Nombre de la Base de Datos:** `(Por definir al crear el recurso en Coolify, típicamente 'regutrack')`
+*   **Usuario de la DB:** `postgres`
+*   **Password:** `(La que asignes en Coolify)`
+*   **pgAdmin:** Actualmente no hay pgAdmin instalado en el VPS. Se recomienda conectarse remotamente usando DBeaver, DataGrip, o un pgAdmin instalado en tu computadora local apuntando a la IP pública.

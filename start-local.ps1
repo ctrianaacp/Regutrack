@@ -20,19 +20,19 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
-function Write-Step($msg) { Write-Host "`n▶ $msg" -ForegroundColor Cyan }
-function Write-OK($msg)   { Write-Host "  ✓ $msg" -ForegroundColor Green }
-function Write-Warn($msg) { Write-Host "  ⚠ $msg" -ForegroundColor Yellow }
-function Write-Fail($msg) { Write-Host "  ✗ $msg" -ForegroundColor Red }
+function Write-Step($msg) { Write-Host "`n>> $msg" -ForegroundColor Cyan }
+function Write-OK($msg)   { Write-Host "  [OK] $msg" -ForegroundColor Green }
+function Write-Warn($msg) { Write-Host "  [!] $msg" -ForegroundColor Yellow }
+function Write-Fail($msg) { Write-Host "  [X] $msg" -ForegroundColor Red }
 
 Write-Host ""
-Write-Host "══════════════════════════════════════════════════" -ForegroundColor Magenta
-Write-Host "   ReguTrack — Despliegue Local Completo"          -ForegroundColor Magenta
-Write-Host "══════════════════════════════════════════════════" -ForegroundColor Magenta
+Write-Host "==================================================" -ForegroundColor Magenta
+Write-Host "   ReguTrack - Despliegue Local Completo"          -ForegroundColor Magenta
+Write-Host "==================================================" -ForegroundColor Magenta
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # MODO STOP: detener todo
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 if ($Stop) {
     Write-Step "Deteniendo servicios..."
 
@@ -43,13 +43,13 @@ if ($Stop) {
     docker compose down 2>$null
     Write-OK "Docker: contenedores detenidos"
 
-    Write-Host "`n  🛑  Todos los servicios detenidos.`n" -ForegroundColor Yellow
+    Write-Host "`n  STOP  Todos los servicios detenidos.`n" -ForegroundColor Yellow
     exit 0
 }
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # PASO 1: Verificar dependencias
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 Write-Step "Verificando dependencias..."
 
 # Docker
@@ -89,18 +89,18 @@ if (-not $pm2Exists) {
     Write-OK "PM2: $(pm2 --version 2>&1)"
 }
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # PASO 2: Crear carpeta de logs
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 $logsPath = Join-Path $Root "logs"
 if (-not (Test-Path $logsPath)) {
     New-Item -ItemType Directory -Path $logsPath | Out-Null
     Write-OK "Carpeta logs/ creada"
 }
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # PASO 3: Levantar Docker (PostgreSQL + FastAPI)
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 Write-Step "Levantando backend con Docker Compose..."
 Set-Location $Root
 
@@ -111,9 +111,9 @@ if ($LASTEXITCODE -ne 0) {
 }
 Write-OK "Contenedores iniciados (PostgreSQL + FastAPI)"
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # PASO 4: Esperar a que el API esté listo (hasta 60 seg)
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 Write-Step "Esperando a que el backend esté listo..."
 $maxWait = 60
 $waited = 0
@@ -140,9 +140,9 @@ if (-not $apiReady) {
     Write-OK "API respondiendo en http://localhost:8000/health"
 }
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # PASO 5: Build del frontend (Next.js)
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 $frontendPath = Join-Path $Root "frontend"
 Set-Location $frontendPath
 
@@ -168,9 +168,9 @@ if (-not $SkipBuild) {
 
 Set-Location $Root
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # PASO 6: Reiniciar PM2 (frontend)
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 Write-Step "Iniciando/reiniciando frontend con PM2..."
 
 # Si ya existe el proceso, reiniciarlo; si no, crear nuevo
@@ -185,9 +185,9 @@ if ($pm2List -match "regutrack-frontend") {
 
 pm2 save 2>$null
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # PASO 7: Verificar estado final
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 Write-Step "Verificando estado final..."
 Start-Sleep -Seconds 3
 
@@ -207,13 +207,14 @@ try {
     Write-Warn "Backend no respondió — verifica: docker logs regutrack-api"
 }
 
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 # RESUMEN FINAL
-# ──────────────────────────────────────────────────────────────────────────────
+# ------------------------------------------------------------------------------
 Write-Host ""
-Write-Host "══════════════════════════════════════════════════" -ForegroundColor Green
-Write-Host "  ✅  ¡ReguTrack desplegado correctamente!"        -ForegroundColor Green
-Write-Host "══════════════════════════════════════════════════" -ForegroundColor Green
+Write-Host ""
+Write-Host "==================================================" -ForegroundColor Green
+Write-Host "  OK  ReguTrack desplegado correctamente!"        -ForegroundColor Green
+Write-Host "==================================================" -ForegroundColor Green
 Write-Host ""
 Write-Host "  🌐  Frontend:   http://localhost:3000"            -ForegroundColor White
 Write-Host "  🔌  Backend:    http://localhost:8000"            -ForegroundColor White

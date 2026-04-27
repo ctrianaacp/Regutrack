@@ -39,7 +39,7 @@ def _build_html(docs_by_entity: dict) -> str:
             date_str  = str(doc.publication_date) if doc.publication_date else "—"
             type_str  = doc.doc_type or "Norma"
             num_str   = doc.number or ""
-            title_str = doc.title[:80] + ("…" if len(doc.title) > 80 else "")
+            title_str = doc.title
 
             if doc.url:
                 title_html = f'<a href="{doc.url}" style="color:{_ACCENT_COLOR};text-decoration:none;font-weight:600;">{title_str}</a>'
@@ -55,7 +55,7 @@ def _build_html(docs_by_entity: dict) -> str:
                          padding:2px 7px;border-radius:10px;">{type_str}</span>
             {f'<span style="color:#888;font-size:11px;margin-left:5px;">#{num_str}</span>' if num_str else ""}
           </td>
-          <td style="padding:9px 10px;border-bottom:1px solid #e8ecf0;font-size:12px;vertical-align:top">{title_html}</td>
+          <td style="padding:9px 10px;border-bottom:1px solid #e8ecf0;font-size:11px;line-height:1.4;vertical-align:top">{title_html}</td>
         </tr>"""
             shown += 1
 
@@ -133,11 +133,11 @@ def _build_html(docs_by_entity: dict) -> str:
                            overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;">
               <thead>
                 <tr style="background:#f7f9fc;">
-                  <th style="padding:9px 10px;text-align:left;font-size:11px;color:#666;
+                  <th width="110" style="padding:9px 10px;text-align:left;font-size:11px;color:#666;
                               font-weight:700;border-bottom:2px solid #e0e5eb;">Entidad</th>
-                  <th style="padding:9px 10px;text-align:left;font-size:11px;color:#666;
+                  <th width="80" style="padding:9px 10px;text-align:left;font-size:11px;color:#666;
                               font-weight:700;border-bottom:2px solid #e0e5eb;white-space:nowrap;">Fecha</th>
-                  <th style="padding:9px 10px;text-align:left;font-size:11px;color:#666;
+                  <th width="140" style="padding:9px 10px;text-align:left;font-size:11px;color:#666;
                               font-weight:700;border-bottom:2px solid #e0e5eb;">Tipo</th>
                   <th style="padding:9px 10px;text-align:left;font-size:11px;color:#666;
                               font-weight:700;border-bottom:2px solid #e0e5eb;">Documento</th>
@@ -206,7 +206,7 @@ def _build_plain(docs: list[Document], entity_name: str) -> str:
     ]
     for doc in docs[:20]:
         lines.append(
-            f"[{doc.doc_type or 'Norma'}] {doc.title[:80]}"
+            f"[{doc.doc_type or 'Norma'}] {doc.title}"
             f" | {doc.publication_date or 'Fecha desconocida'}"
             f" | {doc.url or 'Sin URL'}"
         )
@@ -293,7 +293,7 @@ def _build_plain_consolidated(docs_by_entity: dict) -> str:
         lines.append(f"\n[{entity_name}]")
         for doc in docs:
             lines.append(
-                f"  [{doc.doc_type or 'Norma'}] {doc.title[:80]}"
+                f"  [{doc.doc_type or 'Norma'}] {doc.title}"
                 f" | {doc.publication_date or 'Fecha desconocida'}"
                 f" | {doc.url or 'Sin URL'}"
             )

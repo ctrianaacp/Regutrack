@@ -5,6 +5,7 @@ from regutrack.scrapers.group1_centralizadores.suin_juriscol import SuinJuriscol
 from regutrack.scrapers.group1_centralizadores.imprenta_nacional import ImprentaNacionalScraper
 from regutrack.scrapers.group1_centralizadores.funcion_publica import FuncionPublicaScraper
 from regutrack.scrapers.group1_centralizadores.secretaria_juridica import SecretariaJuridicaScraper
+from regutrack.scrapers.group1_centralizadores.sucop import SUCOPScraper
 
 # Group 2 — Ministerios y Presidencia
 from regutrack.scrapers.group2_ministerios.presidencia import PresidenciaScraper
@@ -56,6 +57,7 @@ ALL_SCRAPERS = [
     ImprentaNacionalScraper,
     FuncionPublicaScraper,
     SecretariaJuridicaScraper,
+    SUCOPScraper,
     # Group 2
     PresidenciaScraper,
     MinhaciendaScraper,
@@ -103,6 +105,7 @@ SCRAPERS_BY_KEY: dict[str, type] = {
     "imprenta_nacional": ImprentaNacionalScraper,
     "funcion_publica": FuncionPublicaScraper,
     "secretaria_juridica": SecretariaJuridicaScraper,
+    "sucop": SUCOPScraper,
     # Group 2
     "presidencia": PresidenciaScraper,
     "minhacienda": MinhaciendaScraper,
