@@ -162,7 +162,17 @@ class BaseScraper(ABC):
         from regutrack.config import settings
 
         async with async_playwright() as p:
-            proxy_config = {"server": settings.scraper_proxy_url} if settings.scraper_proxy_url else None
+            proxy_config = None
+            if settings.scraper_proxy_url:
+                from urllib.parse import urlparse
+                parsed = urlparse(settings.scraper_proxy_url)
+                proxy_config = {
+                    "server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+                }
+                if parsed.username and parsed.password:
+                    proxy_config["username"] = parsed.username
+                    proxy_config["password"] = parsed.password
+
             browser = await p.chromium.launch(
                 headless=True,
                 args=["--no-sandbox", "--disable-dev-shm-usage"],
