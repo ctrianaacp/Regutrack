@@ -113,6 +113,12 @@ Si estás modificando código, **evita estos problemas conocidos**:
     *   Los reportes por correo deben priorizar la visibilidad del tema para que el usuario no necesite entrar a la plataforma para entender la relevancia.
     *   **Regla:** No truncar el título del documento en la tabla del correo (`title_str = doc.title`). Usar un tamaño de fuente ligeramente menor (11px) y asegurar que la columna "Tipo" tenga suficiente ancho (140px) para no comprimir el texto.
 
+12. **Evasión de Bloqueos Regionales (Proxy Residencial):**
+    *   **El Error:** Al desplegar en producción en un VPS internacional (ej. IONOS), los scrapers hacia `mintrabajo.gov.co`, `sucop.gov.co` y `ansv.gov.co` generaban el error `Timeout 90000ms exceeded`.
+    *   **La Causa:** Los WAFs (Firewalls) gubernamentales bloquean o penalizan conexiones que provienen de Datacenters internacionales para evitar ataques DDoS o Scraping agresivo.
+    *   **La Solución:** Se implementó soporte de proxies tanto para `Playwright` (`base.py`) como para `httpx` (`http_client.py`). Para evadir la restricción en producción se DEBE comprar una IP de un proxy residencial colombiano (ej. en *Proxy-Cheap* plan *Static Residential ISP*) y configurarla en Coolify mediante la variable de entorno `SCRAPER_PROXY_URL=http://user:pass@ip:puerto`.
+    *   **Gotcha de Playwright:** Playwright no acepta nativamente el formato compacto `http://user:pass@ip:puerto` en el parámetro `server`, por lo que el `_fetch_with_playwright` fue refactorizado para parsear la URL usando `urllib.parse.urlparse` y separar el `username` y `password` en el diccionario `proxy_config`.
+
 ## 4. Archivo .env
 Las configuraciones críticas están aquí. Las principales relacionadas con el core de la app son:
 *   `VITE_API_URL` / `NEXT_PUBLIC_API_URL`: Definientes de la API proxy (típicamente de cliente).
