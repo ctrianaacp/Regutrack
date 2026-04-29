@@ -67,6 +67,7 @@ async def fetch_html(
         timeout=_timeout,
         headers=merged_headers,
         verify=False,  # Some .gov.co sites have SSL issues
+        proxy=settings.scraper_proxy_url if settings.scraper_proxy_url else None,
     ) as client:
         async for attempt in AsyncRetrying(
             stop=stop_after_attempt(settings.scraper_max_retries),
@@ -102,6 +103,7 @@ async def fetch_json(
         timeout=_timeout,
         headers=merged_headers,
         verify=False,
+        proxy=settings.scraper_proxy_url if settings.scraper_proxy_url else None,
     ) as client:
         async for attempt in AsyncRetrying(
             stop=stop_after_attempt(settings.scraper_max_retries),

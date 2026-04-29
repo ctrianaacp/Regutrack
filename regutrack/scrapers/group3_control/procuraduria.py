@@ -67,10 +67,12 @@ class ProcuradoriaScraper(BaseScraper):
 
     async def _fetch_year(self, year: int, endpoint: str) -> list[DocumentResult]:
         """Hace POST al endpoint de la Relatoría con el año dado y parsea los resultados."""
+        from regutrack.config import settings
         async with httpx.AsyncClient(
             timeout=30,
             follow_redirects=True,
             verify=False,  # SSL cert issues on .gov.co
+            proxy=settings.scraper_proxy_url if settings.scraper_proxy_url else None,
         ) as client:
             try:
                 resp = await client.post(endpoint, data={"anio": str(year), "ok": "Buscar"})

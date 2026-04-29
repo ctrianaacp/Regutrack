@@ -159,11 +159,14 @@ class BaseScraper(ABC):
     async def _fetch_with_playwright(self) -> list[DocumentResult]:
         """Fetch using Playwright headless browser for JS-rendered pages."""
         from playwright.async_api import async_playwright
+        from regutrack.config import settings
 
         async with async_playwright() as p:
+            proxy_config = {"server": settings.scraper_proxy_url} if settings.scraper_proxy_url else None
             browser = await p.chromium.launch(
                 headless=True,
-                args=["--no-sandbox", "--disable-dev-shm-usage"]
+                args=["--no-sandbox", "--disable-dev-shm-usage"],
+                proxy=proxy_config
             )
             context = await browser.new_context(
                 user_agent=(

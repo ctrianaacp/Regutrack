@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     scraper_use_playwright: bool = Field(
         default=True, description="Enable Playwright for JS-rendered sites"
     )
+    scraper_proxy_url: str = Field(
+        default="", description="Proxy URL for HTTP and Playwright (e.g. http://user:pass@ip:port)"
+    )
 
     # Scheduler
     scheduler_hour: int = Field(default=6, description="Hour of first run (24h, legacy)")
