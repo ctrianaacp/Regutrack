@@ -2,9 +2,10 @@
 #  start-local.ps1  –  ReguTrack: Despliegue completo en local (un solo comando)
 #
 #  Levanta:
-#    1. Docker Compose  → PostgreSQL + FastAPI (puertos 5432, 8000)
-#    2. Next.js build   → Compila el frontend de producción
-#    3. PM2             → Sirve el frontend (puerto 3000)
+#    1. Túnel SSH       → Conexión a PostgreSQL en VPS (puerto 5432)
+#    2. Docker Compose  → FastAPI (puerto 8000)
+#    3. Next.js build   → Compila el frontend de producción
+#    4. PM2             → Sirve el frontend (puerto 3000)
 #
 #  Uso:
 #    .\start-local.ps1            # Despliegue completo
@@ -42,6 +43,13 @@ if ($Stop) {
     Set-Location $Root
     docker compose down 2>$null
     Write-OK "Docker: contenedores detenidos"
+
+    # Detener túnel SSH en puerto 5432
+    $sshPids = Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess
+    if ($sshPids) {
+        $sshPids | ForEach-Object { Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue }
+        Write-OK "Túnel SSH: detenido"
+    }
 
     Write-Host "`n  STOP  Todos los servicios detenidos.`n" -ForegroundColor Yellow
     exit 0
@@ -99,17 +107,28 @@ if (-not (Test-Path $logsPath)) {
 }
 
 # ------------------------------------------------------------------------------
-# PASO 3: Levantar Docker (PostgreSQL + FastAPI)
+# PASO 3: Levantar Túnel SSH y Backend (FastAPI)
 # ------------------------------------------------------------------------------
+Write-Step "Levantando Túnel SSH hacia VPS de producción..."
+# Verificar si el puerto 5432 ya está en uso
+$portInUse = Get-NetTCPConnection -LocalPort 5432 -State Listen -ErrorAction SilentlyContinue
+if (-not $portInUse) {
+    Start-Process -NoNewWindow -FilePath "ssh" -ArgumentList "-i $env:USERPROFILE\.ssh\id_ed25519 -L 5432:127.0.0.1:5432 acpadmin@74.208.130.203 -N"
+    Write-OK "Túnel SSH: iniciado en background"
+    Start-Sleep -Seconds 3
+} else {
+    Write-OK "Túnel SSH: ya hay un servicio escuchando en el puerto 5432"
+}
+
 Write-Step "Levantando backend con Docker Compose..."
 Set-Location $Root
 
-docker compose up -d --build
+docker compose up -d --build api
 if ($LASTEXITCODE -ne 0) {
-    Write-Fail "Docker Compose falló. Revisa los logs con: docker compose logs"
+    Write-Fail "Docker Compose falló. Revisa los logs con: docker compose logs api"
     exit 1
 }
-Write-OK "Contenedores iniciados (PostgreSQL + FastAPI)"
+Write-OK "Contenedor iniciado (FastAPI)"
 
 # ------------------------------------------------------------------------------
 # PASO 4: Esperar a que el API esté listo (hasta 60 seg)
@@ -219,7 +238,6 @@ Write-Host ""
 Write-Host "  🌐  Frontend:   http://localhost:3000"            -ForegroundColor White
 Write-Host "  🔌  Backend:    http://localhost:8000"            -ForegroundColor White
 Write-Host "  📖  API Docs:   http://localhost:8000/docs"       -ForegroundColor White
-Write-Host "  🐘  pgAdmin:    http://localhost:5050"            -ForegroundColor White
 Write-Host ""
 Write-Host "  Comandos útiles:" -ForegroundColor DarkGray
 Write-Host "    pm2 logs regutrack-frontend  — Logs del frontend en tiempo real" -ForegroundColor DarkGray

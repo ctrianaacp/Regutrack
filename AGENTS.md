@@ -155,13 +155,15 @@ ReguTrack comparte servidor de producción con otros proyectos corporativos a tr
         ssh -i "$env:USERPROFILE\.ssh\id_ed25519" acpadmin@74.208.130.203
         ```
     *   **NO usar `root`** de forma directa, está bloqueado por seguridad. El usuario `acpadmin` tiene privilegios `sudo`.
-*   **Firewall (UFW) y Fail2Ban:** Están activados. Si se configuran puertos adicionales (ej. Base de datos para conexiones externas), asegúrate de abrirlos en `ufw` usando el usuario `acpadmin`.
+*   **Firewall (UFW) y Fail2Ban:** Están activados. **ESTRICTAMENTE PROHIBIDO** abrir puertos de Bases de Datos (`5432`, etc.) al exterior en UFW o Docker (`0.0.0.0`). Las bases de datos en Coolify deben mapearse EXCLUSIVAMENTE a `127.0.0.1`.
+*   **Conexión a Bases de Datos (Desarrollo Local):** Los agentes y desarrolladores DEBEN incluir un script/workflow en el proyecto (ej. en `package.json` o un `.bat`) para levantar un Túnel SSH hacia el VPS.
+    *   Comando estándar: `ssh -L 5432:localhost:5432 root@74.208.130.203 -N`
+    *   Las variables de entorno (`.env`) en desarrollo local siempre deben apuntar a `localhost:5432`.
 *   **Estrategia de Despliegue (Coolify):**
     *   El Backend (`Dockerfile.api`) y Frontend (`Next.js / Nixpacks`) se instancian como contenedores independientes dentro del VPS, no usar PM2 en producción.
 
 ### Datos de Conexión a la Nueva Infraestructura PostgreSQL (VPS)
-*   **Host / IP:** `74.208.130.203` (Puerto `5432`)
-*   **Nombre de la Base de Datos:** `(Por definir al crear el recurso en Coolify, típicamente 'regutrack')`
+*   **Host / IP:** `127.0.0.1` (Puerto `5432` a través de Túnel SSH)
+*   **Nombre de la Base de Datos:** `regutrack`
 *   **Usuario de la DB:** `postgres`
-*   **Password:** `(La que asignes en Coolify)`
-*   **pgAdmin:** Actualmente no hay pgAdmin instalado en el VPS. Se recomienda conectarse remotamente usando DBeaver, DataGrip, o un pgAdmin instalado en tu computadora local apuntando a la IP pública.
+*   **pgAdmin:** No hay pgAdmin instalado en el VPS. Se debe usar DBeaver o DataGrip localmente mediante la opción de "SSH Tunnel" o levantando el túnel manualmente en la terminal.

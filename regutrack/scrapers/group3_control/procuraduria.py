@@ -3,6 +3,12 @@
 Utiliza el endpoint interno de la Relatoría (apps.procuraduria.gov.co),
 que es el mismo que se incrusta como iframe en la página de normatividad.
 No requiere reCAPTCHA — un POST simple con el año retorna la lista de documentos.
+
+Nota: La Procuraduría ha cambiado su portal de normatividad. Ahora la sección
+de "Normativa" solo muestra un texto descriptivo y un enlace a
+"Resoluciones, Circulares, Directivas y otros", no una tabla de datos parseables
+vía POST.  El scraper ahora consume también el endpoint de Resoluciones para
+obtener documentos reales.
 """
 from datetime import datetime
 from urllib.parse import urljoin
@@ -15,15 +21,23 @@ from regutrack.utils.hashing import DocumentResult
 
 _BASE = "https://www.procuraduria.gov.co"
 _RELATORIA_BASE = "https://apps.procuraduria.gov.co/relatoria"
-_ENDPOINT = (
+
+# Endpoint de Normatividad
+_ENDPOINT_NORMATIVIDAD = (
     f"{_RELATORIA_BASE}/index.jsp"
     "?option=co.gov.pgn.relatoria.frontend.component.pagefactory.NormatividadPageFactory"
+)
+
+# Endpoint de Resoluciones, Circulares, Directivas
+_ENDPOINT_RESOLUCIONES = (
+    f"{_RELATORIA_BASE}/index.jsp"
+    "?option=co.gov.pgn.relatoria.frontend.component.pagefactory.PirelResolucionesPageFactory"
 )
 
 
 class ProcuradoriaScraper(BaseScraper):
     entity_name = "Procuraduría General de la Nación"
-    entity_url = _ENDPOINT          # URL informativa para la UI
+    entity_url = _ENDPOINT_NORMATIVIDAD          # URL informativa para la UI
     entity_group = "group3_control"
     doc_type_default = "Directiva Procuraduría"
 
@@ -36,8 +50,9 @@ class ProcuradoriaScraper(BaseScraper):
 
         all_docs: list[DocumentResult] = []
         for year in years:
-            docs = await self._fetch_year(year)
-            all_docs.extend(docs)
+            for endpoint in [_ENDPOINT_NORMATIVIDAD, _ENDPOINT_RESOLUCIONES]:
+                docs = await self._fetch_year(year, endpoint)
+                all_docs.extend(docs)
 
         # Deduplicar por (título, url)
         seen: set[tuple] = set()
@@ -50,12 +65,23 @@ class ProcuradoriaScraper(BaseScraper):
 
         return result
 
-    async def _fetch_year(self, year: int) -> list[DocumentResult]:
+    async def _fetch_year(self, year: int, endpoint: str) -> list[DocumentResult]:
         """Hace POST al endpoint de la Relatoría con el año dado y parsea los resultados."""
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            resp = await client.post(_ENDPOINT, data={"anio": str(year), "ok": "Buscar"})
-            resp.raise_for_status()
-            html = resp.text
+        async with httpx.AsyncClient(
+            timeout=30,
+            follow_redirects=True,
+            verify=False,  # SSL cert issues on .gov.co
+        ) as client:
+            try:
+                resp = await client.post(endpoint, data={"anio": str(year), "ok": "Buscar"})
+                resp.raise_for_status()
+                html = resp.text
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code in (502, 503, 504):
+                    return []  # Server temporarily unavailable
+                raise
+            except Exception:
+                return []
 
         soup = BeautifulSoup(html, "html.parser")
 

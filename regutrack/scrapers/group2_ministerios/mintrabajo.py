@@ -2,6 +2,9 @@
 
 La página usa Liferay. Se extrae el listado de documentos del marco
 legal visible en la tabla de la biblioteca de documentos.
+
+El sitio Liferay es pesado y tiene analytics continuos, por lo que
+`networkidle` NUNCA se alcanza. Usamos `domcontentloaded` + selector wait.
 """
 from regutrack.scrapers.base import BaseScraper
 from regutrack.utils.hashing import DocumentResult
@@ -18,8 +21,20 @@ class MintrabajuScraper(BaseScraper):
     requires_js = True
 
     async def fetch_documents_with_page(self, page) -> list[DocumentResult]:
-        await page.goto(_URL, timeout=45_000, wait_until="networkidle")
-        await page.wait_for_timeout(2_500)
+        # Use domcontentloaded instead of networkidle — Liferay never stops pinging
+        await page.goto(_URL, timeout=90_000, wait_until="domcontentloaded")
+
+        # Wait for the document library table or links to appear
+        try:
+            await page.wait_for_selector(
+                "a.text-truncate, table tr td a[href*='view_file'], "
+                "table tr td a[href*='/documents/']",
+                timeout=30_000,
+            )
+        except Exception:
+            pass  # Proceed with whatever loaded
+
+        await page.wait_for_timeout(3_000)
 
         results: list[DocumentResult] = []
 

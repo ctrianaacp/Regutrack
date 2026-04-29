@@ -20,25 +20,33 @@ description: Despliega ReguTrack completamente en local (Docker + PM2 + Next.js 
 ```
 Windows (local)
 │
-├── Docker Compose           ← Maneja: Base de datos + API
-│   ├── regutrack-db         (PostgreSQL 16, puerto 5432)
+├── Docker Compose           ← Maneja: API
 │   └── regutrack-api        (FastAPI + Uvicorn, puerto 8000)
+│
+├── Túnel SSH                ← Conexión a Base de Datos
+│   └── Puerto 5432 local -> VPS Producción (74.208.130.203)
 │
 └── PM2                      ← Maneja: Solo el frontend
     └── regutrack-frontend   (Next.js build, puerto 3000)
 ```
 
-**IMPORTANTE:** PM2 gestiona ÚNICAMENTE el frontend. El backend siempre va vía Docker.
+**IMPORTANTE:** PM2 gestiona ÚNICAMENTE el frontend. El backend va vía Docker y la BD usa un túnel SSH.
 
 ---
 
 ## Pasos de despliegue completo
 
-### Paso 1 — Levantar Docker (backend + DB)
+### Paso 1 — Levantar Túnel SSH y Docker (API)
 
+Primero inicia el túnel SSH hacia la BD de producción:
+```powershell
+Start-Process -NoNewWindow ssh -ArgumentList "-i $env:USERPROFILE\.ssh\id_ed25519 -L 5432:127.0.0.1:5432 acpadmin@74.208.130.203 -N"
+```
+
+Luego arranca el contenedor de la API:
 ```powershell
 # Desde la raíz del proyecto
-docker compose up -d
+docker compose up -d api
 ```
 
 Verifica que los contenedores están saludables:
@@ -47,7 +55,6 @@ docker compose ps
 ```
 Espera output como:
 ```
-regutrack-db     Up (healthy)
 regutrack-api    Up
 ```
 
@@ -170,4 +177,3 @@ curl.exe -s http://localhost:8000/health
 | Frontend | http://localhost:3000 |
 | Backend API | http://localhost:8000 |
 | API Docs (Swagger) | http://localhost:8000/docs |
-| pgAdmin | http://localhost:5050 |

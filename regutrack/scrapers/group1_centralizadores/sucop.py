@@ -1,6 +1,10 @@
 """SUCOP (Sistema Único de Consulta Pública) scraper.
 
 Scrapes public comment projects for normative documents from various Colombian entities.
+
+The SUCOP portal is a SharePoint SPA that loads results via CAML queries.
+The .bq-proceso elements only appear after JavaScript execution completes.
+Results take several seconds to render after initial page load.
 """
 
 from bs4 import BeautifulSoup
@@ -19,18 +23,29 @@ class SUCOPScraper(BaseScraper):
     requires_js = True
 
     async def fetch_documents_with_page(self, page) -> list[DocumentResult]:
-        # Navigate and wait for content
-        await page.goto(self.entity_url, timeout=90_000, wait_until="domcontentloaded")
+        # Navigate with domcontentloaded — SharePoint SPAs never reach networkidle
+        await page.goto(self.entity_url, timeout=120_000, wait_until="domcontentloaded")
         
-        # Site is slow and dynamic, wait for the actual results to appear
+        # SharePoint needs significant time to execute CAML queries and render
+        # Wait for results count text or process cards to appear
         try:
-            await page.wait_for_selector(".bq-proceso", timeout=60_000)
+            await page.wait_for_selector(
+                ".bq-proceso, .bq-resultado, [class*='resultado']",
+                timeout=60_000,
+            )
+            logger.info("[SUCOP] Result elements detected, waiting for full render")
         except Exception:
-            # If nothing found, it might be an empty search
-            pass
+            logger.warning("[SUCOP] No result elements found after 60s, trying longer wait")
+            # Give it more time — the CAML queries can be slow
+            await page.wait_for_timeout(10_000)
+            # Try once more
+            try:
+                await page.wait_for_selector(".bq-proceso", timeout=30_000)
+            except Exception:
+                logger.warning("[SUCOP] Still no results after extended wait")
             
-        # Give it a small extra buffer for all items to render
-        await page.wait_for_timeout(3000)
+        # Give extra buffer for all items to render after first one appears
+        await page.wait_for_timeout(5_000)
         
         html = await page.content()
         return self._parse_sucop_html(html)
@@ -41,9 +56,19 @@ class SUCOPScraper(BaseScraper):
         
         # Based on debug HTML, items are in .bq-proceso
         items = soup.select(".bq-proceso")
+        
+        if not items:
+            # Fallback: try other selectors that might contain results
+            items = soup.select(".bq-resultado, [class*='proceso'], [class*='resultado']")
+        
+        logger.info(f"[SUCOP] Found {len(items)} result items")
+        
         for item in items:
             # 1. Title and Link
             title_el = item.select_one(".normaTitle a")
+            if not title_el:
+                # Fallback selectors
+                title_el = item.select_one("a[href*='Normativa'], a[href*='IDNorma']")
             if not title_el:
                 continue
                 

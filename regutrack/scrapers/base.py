@@ -63,7 +63,7 @@ class BaseScraper(ABC):
             docs: list[DocumentResult] = []
 
             # ── Step 1: Try AI-learned selectors (fast, no LLM cost) ──────
-            if settings.ai_scraper_enabled:
+            if settings.ai_scraper_enabled and not self.requires_js:
                 from regutrack.ai.selector_store import SelectorStore
                 saved = SelectorStore.load(session, entity.id)
                 if saved and saved.success_count >= 2 and saved.failure_count <= saved.success_count:
@@ -85,7 +85,7 @@ class BaseScraper(ABC):
             result.total_fetched = len(docs)
 
             # ── Step 3: AI fallback — activate only when docs==0 ──────────
-            if len(docs) == 0 and settings.ai_scraper_enabled and settings.openai_api_key:
+            if len(docs) == 0 and settings.ai_scraper_enabled and settings.openai_api_key and not self.requires_js:
                 logger.warning(
                     f"[{self.entity_name}] 0 docs from primary scraper. Activating AI fallback."
                 )
@@ -161,7 +161,10 @@ class BaseScraper(ABC):
         from playwright.async_api import async_playwright
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-dev-shm-usage"]
+            )
             context = await browser.new_context(
                 user_agent=(
                     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -169,6 +172,7 @@ class BaseScraper(ABC):
                     "Chrome/124.0.0.0 Safari/537.36"
                 ),
                 locale="es-CO",
+                ignore_https_errors=True,
             )
             page = await context.new_page()
             try:

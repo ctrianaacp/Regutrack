@@ -5,7 +5,8 @@ description: despliegue completo de ReguTrack en local (Docker + PM2)
 # Despliegue Local de ReguTrack
 
 Este workflow levanta el stack completo de ReguTrack en Windows:
-- **Backend**: Docker Compose (PostgreSQL + FastAPI en puertos 5432/8000)
+- **Backend**: Docker Compose (FastAPI en puerto 8000)
+- **Base de Datos**: Túnel SSH hacia PostgreSQL en VPS de producción (puerto 5432 mapeado a localhost)
 - **Frontend**: Next.js compilado y servido por PM2 (puerto 3000)
 
 ## Prerrequisitos
@@ -32,10 +33,17 @@ Este workflow levanta el stack completo de ReguTrack en Windows:
 
 ## Opción B: Paso a paso
 
-### 1. Levantar Backend (Docker)
+### 1. Levantar Túnel SSH y Backend (Docker)
+Primero, abre el túnel hacia la base de datos de producción:
 // turbo
 ```powershell
-docker compose up -d
+Start-Process -NoNewWindow ssh -ArgumentList "-i $env:USERPROFILE\.ssh\id_ed25519 -L 5432:127.0.0.1:5432 acpadmin@74.208.130.203 -N"
+```
+
+Luego, levanta el API:
+// turbo
+```powershell
+docker compose up -d api
 ```
 Esperar a que el API responda en http://localhost:8000/health.
 
@@ -80,7 +88,6 @@ curl.exe -s http://localhost:3000/api/stats
 - 🌐 Frontend: http://localhost:3000
 - 🔌 Backend: http://localhost:8000
 - 📖 API Docs: http://localhost:8000/docs
-- 🐘 pgAdmin: http://localhost:5050
 
 ---
 

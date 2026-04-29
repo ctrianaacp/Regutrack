@@ -1,41 +1,9 @@
 version: "3.9"
 
 services:
-  # ─── PostgreSQL 16 ───────────────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: regutrack-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-regutrack}
-      POSTGRES_USER: ${POSTGRES_USER:-regutrack}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-regutrack_pass}
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-regutrack}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # ─── pgAdmin 4 (Web UI) ────────────────────────────────────────
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: regutrack-pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@regutrack.co}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: "False"
-    ports:
-      - "5050:80"
-    depends_on:
-      postgres:
-        condition: service_healthy
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
+# ─── PostgreSQL y pgAdmin ────────────────────────────────────
+  # NOTA: La base de datos ahora está en producción (Coolify VPS).
+  # Usa start-local.ps1 para levantar el túnel SSH al VPS.
 
   # ─── FastAPI Backend ───────────────────────────────────────────
   api:
@@ -45,18 +13,17 @@ services:
     container_name: regutrack-api
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-regutrack}:${POSTGRES_PASSWORD:-regutrack_pass}@postgres:5432/${POSTGRES_DB:-regutrack}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-}@host.docker.internal:5432/${POSTGRES_DB:-regutrack}
       LOG_LEVEL: INFO
       PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
     volumes:
       - ./logs:/app/logs
       - .:/app          # Mount source for development hot-reload
 
 volumes:
-  pgdata:
-  pgadmin_data:
+  # Ya no se usan volúmenes de db en local
+  api_logs:
