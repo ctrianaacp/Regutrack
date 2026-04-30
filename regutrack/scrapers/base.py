@@ -240,12 +240,17 @@ class BaseScraper(ABC):
         entity = self._get_or_create_entity(session)
         now = datetime.utcnow()
         new_count = 0
+        seen_hashes_this_run = set()
 
         for doc in docs:
             if not doc.is_valid():
                 continue
 
             h = doc.compute_hash()
+            if h in seen_hashes_this_run:
+                continue
+            seen_hashes_this_run.add(h)
+
             existing = (
                 session.query(Document)
                 .filter_by(entity_id=entity.id, content_hash=h)
