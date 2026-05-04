@@ -119,6 +119,37 @@ Si estás modificando código, **evita estos problemas conocidos**:
     *   **La Solución:** Se implementó soporte de proxies tanto para `Playwright` (`base.py`) como para `httpx` (`http_client.py`). Para evadir la restricción en producción se DEBE comprar una IP de un proxy residencial colombiano (ej. en *Proxy-Cheap* plan *Static Residential ISP*) y configurarla en Coolify mediante la variable de entorno `SCRAPER_PROXY_URL=http://user:pass@ip:puerto`.
     *   **Gotcha de Playwright:** Playwright no acepta nativamente el formato compacto `http://user:pass@ip:puerto` en el parámetro `server`, por lo que el `_fetch_with_playwright` fue refactorizado para parsear la URL usando `urllib.parse.urlparse` y separar el `username` y `password` en el diccionario `proxy_config`.
 
+13. **Errores de Desconexión en ANLA y Entidades Gubernamentales:**
+    *   **El Error:** `[Autoridad Nacional de Licencias Ambientales (ANLA)] ✗ Server disconnected without sending a response` o `httpx.ReadTimeout`.
+    *   **La Causa:** Frecuentemente los servidores gubernamentales como la Gaceta de la ANLA (`https://gaceta.anla.gov.co:8443`) experimentan caídas totales o cierran puertos aleatoriamente por problemas de infraestructura propia.
+    *   **La Solución:** ¡No hacer nada a nivel de código! La arquitectura de `BaseScraper.run` está diseñada para atrapar excepciones como estas sin afectar el resto del ciclo. El orquestador marca el run como `failed`, guarda el error, y reintenta en el próximo cronjob. Es importante verificar si la URL principal está viva (`curl`) antes de intentar debuggear el código del scraper.
+
+14. **Pruebas de Correo Push (Envíos Manuales Retrasados):**
+    *   **El Escenario:** A veces quedan correos en cola (`is_new=True`) tras una falla de SMTP o reinicio. Se requiere enviar un correo manual (push) consolidando esos documentos.
+    *   **La Solución:** Usar el script `scripts/send_backlog.py` (envía un correo por entidad con intervalos de 15 min). **ESTRICTA REGLA:** Para futuras pruebas de correo push o debug de envío manual, se DEBE modificar temporalmente o asegurar que el `settings.notifier_email_to` apunte **únicamente** a `ctriana@acp.com.co` antes de ejecutar el script. Esto evita inundar de pruebas a toda la lista de gerentes de la ACP.
+    *   **Gotcha de Uvicorn `--reload`:** Al inyectar scripts dentro del contenedor con `docker cp`, NUNCA colocarlos dentro de `/app/` ya que Uvicorn detecta el cambio y reinicia el servidor (matando al scheduler y al script). Siempre copiar a `/tmp/` y ejecutar con `docker exec -e PYTHONPATH=/app <container> python3 /tmp/script.py`.
+
+15. **Mismatch de Variables de Entorno SMTP (Nombre del Campo vs Env Var):**
+    *   **El Error:** `535 Authentication failed: empty username or password` al intentar enviar correos.
+    *   **La Causa:** Coolify define la variable `NOTIFIER_SMTP_PASSWORD`, pero `pydantic-settings` en `config.py` mapeaba al campo `notifier_smtp_pass`, lo cual buscaba la env var `NOTIFIER_SMTP_PASS`. El resultado: la contraseña siempre era un string vacío en producción.
+    *   **La Solución:** Renombrar el campo en `config.py` a `notifier_smtp_password` para que coincida exactamente con la variable de Coolify. Adicionalmente, `notifier_email_from` no estaba configurado en Coolify (solo `NOTIFIER_SMTP_USER`), lo que generaba correos con remitente vacío que ElasticEmail descartaba silenciosamente. Se agregó un fallback en `notifier.py`: `sender = settings.notifier_email_from or settings.notifier_smtp_user`.
+    *   **Regla:** Al agregar cualquier variable de entorno nueva en Coolify, verificar que el nombre del campo en `config.py` (Pydantic) genere exactamente la misma env var esperada. Pydantic convierte `field_name` → `FIELD_NAME` automáticamente.
+
+16. **Crash del Scheduler por UniqueViolation en ConsejoEstado:**
+    *   **El Error:** `psycopg2.errors.UniqueViolation: duplicate key value violates unique constraint "uq_entity_hash"` seguido de `PendingRollbackError`.
+    *   **La Causa:** El scraper del Consejo de Estado extraía miles de documentos del portal de Biblioteca Digital, y entre ellos venían documentos con el mismo `content_hash` (mismo título + número + URL). Como SQLAlchemy tenía `autoflush=False`, la validación `if existing:` en `_persist_documents` no veía los documentos que acababa de insertar en la misma sesión. Al hacer `flush()` al final, PostgreSQL rechazaba los duplicados, la transacción entera hacía rollback, y **todos** los documentos nuevos de esa entidad se perdían. Al ser la excepción atrapada por `_run_one_scraper`, el scheduler continuaba pero con `result=None` para esa entidad, por lo que sus documentos no llegaban al notificador.
+    *   **La Solución:** Se agregó un `set()` local `seen_hashes_this_run` dentro de `_persist_documents()` en `base.py`. Antes de insertar un documento, se verifica si su hash ya fue procesado en el mismo ciclo. Si es duplicado, se ignora silenciosamente.
+    *   **Regla:** Nunca confiar en que la base de datos detectará duplicados durante un `flush()` masivo. Siempre implementar deduplicación en memoria antes de persistir.
+
+17. **URLs con Sufijo Aleatorio en MinEnergía (Duplicados Infinitos):**
+    *   **El Error:** El scraper de MinEnergía generaba ~13 copias del mismo documento en cada corrida del scheduler (ej. "Decreto 0375" aparecía 13 veces, sumando 140 registros basura en la DB).
+    *   **La Causa:** El portal `normativame.minenergia.gov.co` genera URLs de descarga PDF con un número aleatorio al final (ej. `DECRETO_0375_39886.pdf`, `DECRETO_0375_71694.pdf`). Como `compute_hash()` usa `title + number + url`, cada ejecución producía un hash diferente para el mismo documento.
+    *   **La Solución:** Se reescribió el scraper para:
+        1. Apuntar al portal correcto de normativas (`normativame.minenergia.gov.co`) en vez de la página de Foros/Eventos.
+        2. Implementar un hash estable local usando solo `title + number + doc_type` (sin URL) para deduplicación dentro del scraper.
+        3. Corregir la URL malformada (`gov.copublic_html` → `gov.co/public_html`).
+    *   **Regla:** Cuando un portal gubernamental genera URLs dinámicas/temporales para sus PDFs, el scraper debe usar un hash que **excluya la URL** y se base en campos estables (título, número, tipo). Verificar siempre con `SELECT title, COUNT(*) FROM documents WHERE entity_id=X GROUP BY title HAVING COUNT(*) > 1` si hay duplicados sospechosos.
+
 ## 4. Archivo .env
 Las configuraciones críticas están aquí. Las principales relacionadas con el core de la app son:
 *   `VITE_API_URL` / `NEXT_PUBLIC_API_URL`: Definientes de la API proxy (típicamente de cliente).
