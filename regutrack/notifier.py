@@ -327,7 +327,7 @@ def _send_consolidated_email(docs_by_entity: dict) -> None:
             smtp.ehlo()
             smtp.starttls()
             smtp.ehlo()
-            smtp.login(settings.notifier_smtp_user, settings.notifier_smtp_pass)
+            smtp.login(settings.notifier_smtp_user, settings.notifier_smtp_password)
             smtp.sendmail(
                 settings.notifier_email_from,
                 [addr.strip() for addr in settings.notifier_email_to.split(",")],

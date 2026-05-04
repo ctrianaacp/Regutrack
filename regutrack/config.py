@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     notifier_smtp_host: str = Field(default="", description="SMTP host")
     notifier_smtp_port: int = Field(default=587, description="SMTP port")
     notifier_smtp_user: str = Field(default="", description="SMTP username")
-    notifier_smtp_pass: str = Field(default="", description="SMTP password")
+    notifier_smtp_password: str = Field(default="", description="SMTP password")
     notifier_email_from: str = Field(default="", description="From email address")
     notifier_email_to: str = Field(default="", description="To email address")
 
