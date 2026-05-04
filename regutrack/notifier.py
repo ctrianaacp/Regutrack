@@ -314,9 +314,12 @@ def _send_consolidated_email(docs_by_entity: dict) -> None:
     n_ents = len(docs_by_entity)
     subject = f"[{_BRAND_TAG}] {total} nueva(s) norma(s) en {n_ents} entidad(es)"
 
+    # Fallback: use SMTP user as sender if EMAIL_FROM is not configured
+    sender = settings.notifier_email_from or settings.notifier_smtp_user
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"]    = f"{_BRAND_NAME} <{settings.notifier_email_from}>"
+    msg["From"]    = f"{_BRAND_NAME} <{sender}>"
     msg["To"]      = settings.notifier_email_to
 
     msg.attach(MIMEText(_build_plain_consolidated(docs_by_entity), "plain", "utf-8"))
@@ -329,7 +332,7 @@ def _send_consolidated_email(docs_by_entity: dict) -> None:
             smtp.ehlo()
             smtp.login(settings.notifier_smtp_user, settings.notifier_smtp_password)
             smtp.sendmail(
-                settings.notifier_email_from,
+                sender,
                 [addr.strip() for addr in settings.notifier_email_to.split(",")],
                 msg.as_bytes(),
             )
